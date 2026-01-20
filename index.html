@@ -1,80 +1,140 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>EveryONE Counts Counter</title>
+
 <style>
+  /* ----- Page Reset & Fullscreen ----- */
+  html, body {
+    margin: 0;
+    padding: 0;
+    width: 100%;
+    height: 100%;
+    background: #1e1e1e;
+    overflow: hidden;
+  }
+
+  /* ----- Main Container ----- */
   #discipleship-impact {
+    width: 100vw;
+    height: 100vh;
     background: #1e1e1e;
     color: #f5f2eb;
     font-family: "Segoe UI", system-ui, sans-serif;
-    padding: 60px 20px;
+
+    display: flex;
+    align-items: center;
+    justify-content: center;
     text-align: center;
   }
 
+  /* ----- Scaled Content Wrapper ----- */
+  #discipleship-impact .content {
+    transform: scale(clamp(1.2, 2.5vw, 1.6));
+    transform-origin: center;
+  }
+
+  /* ----- Title ----- */
   #discipleship-impact h1 {
     font-weight: 400;
-    letter-spacing: 0.05em;
-    margin-bottom: 40px;
+    letter-spacing: 0.08em;
+    margin-bottom: 50px;
     color: #ffffff;
   }
 
+  /* ----- Metrics Grid ----- */
   #discipleship-impact .metrics {
     display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
-    gap: 40px;
-    max-width: 900px;
+    grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+    gap: 60px;
+    max-width: 1200px;
     margin: 0 auto;
   }
 
+  /* ----- Metric Circles ----- */
   #discipleship-impact .circle {
-    width: 220px;
-    height: 220px;
+    width: 240px;
+    height: 240px;
     border-radius: 50%;
     border: 3px solid #cbb68d;
+
     display: flex;
     flex-direction: column;
     align-items: center;
     justify-content: center;
-    background: rgba(255,255,255,0.02);
-    box-shadow: 0 0 30px rgba(0,0,0,0.4);
+
+    background: rgba(255, 255, 255, 0.02);
+    box-shadow: 0 0 30px rgba(0, 0, 0, 0.45);
+
+    transition: box-shadow 0.6s ease;
   }
 
+  /* Glow pulse when value updates */
+  .circle.updated {
+    box-shadow: 0 0 45px rgba(203, 182, 141, 0.7);
+  }
+
+  /* ----- Numbers ----- */
   #discipleship-impact .value {
-    font-size: 4rem;
+    font-size: 4.5rem;
     font-weight: 600;
-    margin-bottom: 18px;
+    margin-bottom: 20px;
   }
 
+  /* ----- Labels ----- */
   #discipleship-impact .label {
-    font-size: 0.9rem;
+    font-size: 0.95rem;
     text-transform: uppercase;
-    letter-spacing: 0.08em;
+    letter-spacing: 0.1em;
     opacity: 0.85;
-    text-align: center;
     line-height: 1.4;
+    max-width: 180px;
   }
 
+  /* ----- Footer ----- */
   #discipleship-impact footer {
-    margin-top: 40px;
-    font-size: 0.75rem;
-    opacity: 0.5;
+    margin-top: 50px;
+    font-size: 0.8rem;
+    opacity: 0.55;
   }
 </style>
+</head>
+
+<body>
 
 <div id="discipleship-impact">
-  <h1>EveryONE Counts Counter</h1>
-
-  <div class="metrics" id="metrics"></div>
-
-  <footer id="last-updated">Last updated: —</footer>
+  <div class="content">
+    <h1>EveryONE Counts Counter</h1>
+    <div class="metrics" id="metrics"></div>
+    <footer id="last-updated">Last updated: —</footer>
+  </div>
 </div>
 
 <script>
   const BASE_CSV_URL =
     "https://docs.google.com/spreadsheets/d/e/2PACX-1vRPWno5RceeKjky3GWxluBEigdbePn411EyU6GM9KblkVpBZDEvaNntbLo95s1C6ehNOD24PrpZxlBa/pub?gid=901964678&single=true&output=csv";
 
+  const previousValues = {};
+
+  function animateNumber(el, start, end, duration = 800) {
+    const startTime = performance.now();
+
+    function update(now) {
+      const progress = Math.min((now - startTime) / duration, 1);
+      const value = Math.floor(start + (end - start) * progress);
+      el.textContent = value;
+      if (progress < 1) requestAnimationFrame(update);
+    }
+
+    requestAnimationFrame(update);
+  }
+
   async function loadMetrics() {
     try {
-      // Cache-busting parameter to defeat Squarespace/Cloudflare caching
-      const cacheBustedUrl = BASE_CSV_URL + "&t=" + Date.now();
-
-      const res = await fetch(cacheBustedUrl, { cache: "no-store" });
+      const url = BASE_CSV_URL + "&t=" + Date.now();
+      const res = await fetch(url, { cache: "no-store" });
       const text = await res.text();
 
       const rows = text.trim().split("\n").slice(1);
@@ -82,32 +142,49 @@
       container.innerHTML = "";
 
       rows.forEach(row => {
-        const [metric, count] = row.split(",");
-        if (!metric || !count) return;
+        const [metric, countRaw] = row.split(",");
+        if (!metric || !countRaw) return;
+
+        const count = parseInt(countRaw.trim(), 10);
+        const prev = previousValues[metric] ?? count;
 
         const circle = document.createElement("div");
         circle.className = "circle";
-        circle.innerHTML = `
-          <div class="value">${count.trim()}</div>
-          <div class="label">${metric.trim()}</div>
-        `;
 
+        const valueEl = document.createElement("div");
+        valueEl.className = "value";
+        valueEl.textContent = prev;
+
+        const labelEl = document.createElement("div");
+        labelEl.className = "label";
+        labelEl.textContent = metric.trim();
+
+        circle.appendChild(valueEl);
+        circle.appendChild(labelEl);
         container.appendChild(circle);
+
+        if (prev !== count) {
+          animateNumber(valueEl, prev, count);
+          circle.classList.add("updated");
+          setTimeout(() => circle.classList.remove("updated"), 900);
+        } else {
+          valueEl.textContent = count;
+        }
+
+        previousValues[metric] = count;
       });
 
-      // Update "Last updated" timestamp
-      const now = new Date();
       document.getElementById("last-updated").textContent =
-        "Last updated: " + now.toLocaleTimeString();
+        "Last updated: " + new Date().toLocaleTimeString();
 
     } catch (err) {
       console.error("Failed to load CSV", err);
     }
   }
 
-  // Initial load
   loadMetrics();
-
-  // Refresh every 15 seconds
   setInterval(loadMetrics, 15000);
 </script>
+
+</body>
+</html>
